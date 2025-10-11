@@ -1,4 +1,5 @@
 const express = require("express");
+require("dotenv").config();
 const fs = require("fs-extra");
 const path = require("path");
 const { google } = require("googleapis");
@@ -9,7 +10,7 @@ const PORT = 3000;
 // === CONFIG ===
 const CREDENTIALS_PATH = "credentials.json"; // Your OAuth credentials
 const TOKEN_PATH = "token.json"; // Token will be saved here
-const DRIVE_FOLDER_ID = "1LzO5hO4FV3Ag3v8EGgxMd0PVWEVklFZy"; // Folder to sync
+const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID; // Folder to sync
 const LOCAL_FOLDER = path.join(__dirname, "downloads/gati_drive"); // Local folder to save files
 
 // === LOAD CREDENTIALS ===

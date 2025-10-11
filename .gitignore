@@ -5,3 +5,4 @@ node_modules
 gati_images
 credentials.json
 token.json
+.env
