@@ -1,0 +1,7 @@
+#  Ignore files/folders
+#  Add files and folders that you want Git to ignore
+downloads
+node_modules
+gati_images
+credentials.json
+token.json
