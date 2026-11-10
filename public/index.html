@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SyncDrive image search</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: system-ui, sans-serif;
+        color: #172033;
+        background: #f4f6fb;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: start center;
+        padding: 72px 20px;
+      }
+      main {
+        width: min(760px, 100%);
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(1.8rem, 5vw, 2.5rem);
+      }
+      p {
+        margin: 0 0 28px;
+        color: #5e687b;
+      }
+      form {
+        display: flex;
+        gap: 10px;
+        padding: 8px;
+        background: #fff;
+        border: 1px solid #dce1eb;
+        border-radius: 14px;
+        box-shadow: 0 8px 28px #1720330d;
+      }
+      input {
+        flex: 1;
+        min-width: 0;
+        border: 0;
+        outline: 0;
+        padding: 10px 12px;
+        font: inherit;
+      }
+      form button {
+        border: 0;
+        border-radius: 9px;
+        padding: 0 20px;
+        color: #fff;
+        background: #3158d5;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      form button:disabled {
+        opacity: 0.65;
+        cursor: wait;
+      }
+      #status {
+        min-height: 24px;
+        margin: 16px 2px;
+        font-size: 0.95rem;
+      }
+      #results {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        overflow: hidden;
+        background: #fff;
+        border: 1px solid #e0e4ed;
+        border-radius: 12px;
+      }
+      .card img {
+        display: block;
+        width: 100%;
+        height: 190px;
+        object-fit: contain;
+        background: #f8f9fc;
+      }
+      .card footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+      }
+      .card footer span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.9rem;
+      }
+      .copy {
+        display: grid;
+        flex: 0 0 36px;
+        width: 36px;
+        height: 36px;
+        place-items: center;
+        border: 1px solid #dce1eb;
+        border-radius: 8px;
+        color: #3158d5;
+        background: #fff;
+        cursor: pointer;
+      }
+      .copy:hover {
+        background: #f2f5ff;
+      }
+      @media (max-width: 480px) {
+        body {
+          padding-top: 40px;
+        }
+        form {
+          gap: 4px;
+        }
+        form button {
+          padding: 0 14px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Find an image</h1>
+      <p>
+        Search processed images by tag number (letters and numbers), then copy
+        the image link.
+      </p>
+      <form id="search-form">
+        <input
+          id="tag"
+          name="tag"
+          type="search"
+          placeholder="e.g. AB1234"
+          aria-label="Tag number"
+          autocomplete="off"
+          required
+        />
+        <button id="search-button" type="submit">Search</button>
+      </form>
+      <div id="status" role="status" aria-live="polite"></div>
+      <section id="results" aria-label="Image search results"></section>
+    </main>
+
+    <script>
+      const form = document.getElementById("search-form");
+      const input = document.getElementById("tag");
+      const button = document.getElementById("search-button");
+      const status = document.getElementById("status");
+      const results = document.getElementById("results");
+
+      const COPY_ICON =
+        '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="13" height="13" rx="2"></rect><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"></path></svg>';
+
+      // navigator.clipboard only works on https/localhost, so fall back for plain http
+      async function copyText(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          return;
+        }
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        ta.remove();
+        if (!ok) throw new Error("Copy command failed");
+      }
+
+      function renderCard(image) {
+        const card = document.createElement("article");
+        card.className = "card";
+
+        const preview = document.createElement("img");
+        preview.src = image.url;
+        preview.alt = image.name;
+        preview.loading = "lazy";
+
+        const footer = document.createElement("footer");
+        const name = document.createElement("span");
+        name.textContent = image.name;
+        name.title = image.name;
+
+        const copy = document.createElement("button");
+        copy.className = "copy";
+        copy.type = "button";
+        copy.title = "Copy image link";
+        copy.setAttribute("aria-label", "Copy image link for " + image.name);
+        copy.innerHTML = COPY_ICON;
+        copy.addEventListener("click", async () => {
+          try {
+            await copyText(image.url);
+            status.textContent = "Link copied: " + image.name;
+          } catch (err) {
+            console.error("Copy failed:", err);
+            status.textContent = "Could not copy the link.";
+          }
+        });
+
+        footer.append(name, copy);
+        card.append(preview, footer);
+        return card;
+      }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const tag = input.value.trim();
+        if (!tag) return;
+
+        button.disabled = true;
+        status.textContent = "Searching…";
+        results.replaceChildren();
+
+        try {
+          const response = await fetch(
+            "/api/images?tag=" + encodeURIComponent(tag),
+          );
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || "Search failed.");
+
+          if (!data.images.length) {
+            status.textContent = "No images found for that tag.";
+            return;
+          }
+
+          status.textContent =
+            data.images.length +
+            " image" +
+            (data.images.length === 1 ? "" : "s") +
+            " found.";
+          data.images.forEach((image) => results.append(renderCard(image)));
+        } catch (error) {
+          console.error("Image search failed:", error);
+          status.textContent = error.message || "Image search failed.";
+        } finally {
+          button.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

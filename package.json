@@ -6,15 +6,22 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mymasterpices/sync_gdrive_vps_server.git"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/mymasterpices/sync_gdrive_vps_server/issues"
+  },
+  "homepage": "https://github.com/mymasterpices/sync_gdrive_vps_server#readme",
   "dependencies": {
-    "dotenv": "^17.2.3",
+    "cors": "^2.8.6",
     "express": "^5.1.0",
-    "fs-extra": "^11.3.2",
-    "googleapis": "^162.0.0",
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "serve-index": "^1.9.1"
   }
 }

@@ -1,157 +1,197 @@
 const express = require("express");
-require("dotenv").config();
-const fs = require("fs-extra");
+const cors = require("cors");
 const path = require("path");
-const { google } = require("googleapis");
+const fs = require("fs");
+const readline = require("readline");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+const LOG_FILE = process.env.LOG_FILE || "/var/log/gdrive-sync.log";
 
-// === CONFIG ===
-const CREDENTIALS_PATH = "credentials.json"; // Your OAuth credentials
-const TOKEN_PATH = "token.json"; // Token will be saved here
-const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID; // Folder to sync
-const LOCAL_FOLDER = path.join(__dirname, "downloads/gati_drive"); // Local folder to save files
+// Needed so req.protocol is "https" when behind nginx/Cloudflare, otherwise
+// copied links may come out as http:// and get blocked as mixed content.
+app.set("trust proxy", true);
 
-// === LOAD CREDENTIALS ===
-const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH));
-const { client_secret, client_id, redirect_uris } =
-  credentials.web || credentials.installed;
-const REDIRECT_URI = `http://localhost:${PORT}/oauth2callback`; // Change if using VPS with public IP
+// ---------- CORS ----------
+// Origins allowed to read images from JavaScript (needed for PDF generation).
+// Add your real Angular app origin(s): scheme + domain, no trailing slash.
+// Can also be set via env: ALLOWED_ORIGINS="https://app.example.com,http://localhost:4200"
+const ALLOWED_ORIGINS = (
+  process.env.ALLOWED_ORIGINS || "https://crm.jools.in,http://localhost:4200"
+)
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
 
-const oAuth2Client = new google.auth.OAuth2(
-  client_id,
-  client_secret,
-  REDIRECT_URI
+const corsOptions = {
+  origin: ALLOWED_ORIGINS,
+  methods: ["GET", "HEAD", "OPTIONS"],
+  maxAge: 86400, // cache preflight for 1 day
+};
+
+// Correctly point to the 'processed' directory
+// This makes files inside /var/www/gDrive/processed available at /processed
+// CORS is applied only to this route so the browser can read the images
+// (canvas / fetch) when building PDFs.
+app.use(
+  "/processed",
+  cors(corsOptions),
+  express.static(path.join(__dirname, "processed")),
 );
 
-// Serve /downloads folder publicly at root or a specific path
-app.use("/downloads", express.static(LOCAL_FOLDER));
-// === HELPER FUNCTIONS ===
+const IMAGE_EXTENSIONS = new Set([
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".gif",
+  ".webp",
+  ".bmp",
+]);
 
-// Generate OAuth URL
-app.get("/auth", (req, res) => {
-  const authUrl = oAuth2Client.generateAuthUrl({
-    access_type: "offline",
-    scope: ["https://www.googleapis.com/auth/drive.readonly"],
-  });
-  res.redirect(authUrl);
-});
+// ---------- Image search API ----------
+app.get("/api/images", async (req, res) => {
+  const tag = typeof req.query.tag === "string" ? req.query.tag.trim() : "";
+  const normalizedTag = tag.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-// OAuth callback route
-app.get("/oauth2callback", async (req, res) => {
-  const code = req.query.code;
-  if (!code) return res.status(400).send("Missing code");
-
-  try {
-    const { tokens } = await oAuth2Client.getToken(code);
-    oAuth2Client.setCredentials(tokens);
-    fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens));
-    res.send(
-      "✅ Google Drive connected successfully. You can now test /test and /sync."
-    );
-    console.log("Token saved to", TOKEN_PATH);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Authentication failed");
+  if (!normalizedTag || normalizedTag.length > 100) {
+    return res.status(400).json({ error: "Enter a tag number to search." });
   }
-});
 
-// Test API: checks connection and lists first 10 files
-app.get("/test", async (req, res) => {
   try {
-    if (!fs.existsSync(TOKEN_PATH))
-      return res.status(400).send("Please authorize first: /auth");
+    const files = await fs.promises.readdir(path.join(__dirname, "processed"));
+    const matches = files
+      .filter((file) => {
+        if (!IMAGE_EXTENSIONS.has(path.extname(file).toLowerCase()))
+          return false;
 
-    oAuth2Client.setCredentials(JSON.parse(fs.readFileSync(TOKEN_PATH)));
-    const drive = google.drive({ version: "v3", auth: oAuth2Client });
+        const base = path.basename(file, path.extname(file)).toLowerCase();
+        const norm = base.replace(/[^a-z0-9]/g, "");
 
-    const result = await drive.files.list({
-      q: `'${DRIVE_FOLDER_ID}' in parents and trashed = false`,
-      pageSize: 10,
-      fields: "files(id, name, mimeType)",
+        // exact match
+        if (norm === normalizedTag) return true;
+
+        // letters-only prefix, e.g. searching 1234 finds AB1234
+        if (
+          norm.endsWith(normalizedTag) &&
+          /^[a-z]*$/.test(norm.slice(0, norm.length - normalizedTag.length))
+        )
+          return true;
+
+        // tag followed by a separator and suffix, e.g. AB1234_1, AB1234-front
+        const escaped = normalizedTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`).test(base);
+      })
+      .sort((a, b) => a.localeCompare(b));
+
+    res.json({
+      images: matches.map((file) => ({
+        name: file,
+        url: `${req.protocol}://${req.get("host")}/processed/${encodeURIComponent(file)}`,
+      })),
     });
-
-    res.json(result.data.files);
   } catch (err) {
-    console.error(err);
-    res.status(500).send("Error connecting to Google Drive");
+    console.error("Failed to search processed images:", err);
+    res.status(500).json({ error: "Could not search processed images." });
   }
 });
 
-// Sync folder: download all files and subfolders
-app.get("/sync", async (req, res) => {
-  try {
-    if (!fs.existsSync(TOKEN_PATH))
-      return res.status(400).send("Please authorize first: /auth");
-
-    oAuth2Client.setCredentials(JSON.parse(fs.readFileSync(TOKEN_PATH)));
-    const drive = google.drive({ version: "v3", auth: oAuth2Client });
-
-    await syncFolder(drive, DRIVE_FOLDER_ID, LOCAL_FOLDER);
-
-    res.send("✅ Sync completed successfully.");
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Error syncing folder");
-  }
+// ---------- Search page ----------
+// Served from public/index.html
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// Recursive folder sync
-async function listFiles(drive, folderId) {
-  let files = [];
-  let pageToken = null;
+// ---------- Image watcher stats ----------
 
-  do {
-    const res = await drive.files.list({
-      q: `'${folderId}' in parents and trashed = false`,
-      fields: "nextPageToken, files(id, name, mimeType)",
-      pageToken,
-    });
-    files.push(...res.data.files);
-    pageToken = res.data.nextPageToken;
-  } while (pageToken);
+const MONTHS = {
+  Jan: "01",
+  Feb: "02",
+  Mar: "03",
+  Apr: "04",
+  May: "05",
+  Jun: "06",
+  Jul: "07",
+  Aug: "08",
+  Sep: "09",
+  Oct: "10",
+  Nov: "11",
+  Dec: "12",
+};
 
-  return files;
-}
+// Matches lines written by the watcher, e.g.
+// "Mon Oct 19 14:32:10 IST 2026: New image detected: /path/a.jpg - Running cleanup..."
+const DETECT_REGEX =
+  /^\w{3} (\w{3})\s+(\d{1,2}) (\d{2}:\d{2}:\d{2}) (\S+) (\d{4}): New image detected: (.+?) - Running cleanup/;
 
-async function downloadFile(drive, fileId, destPath) {
-  const dest = fs.createWriteStream(destPath);
-  const res = await drive.files.get(
-    { fileId, alt: "media" },
-    { responseType: "stream" }
-  );
+async function readWatcherStats() {
+  const daily = {}; // { "2026-10-19": { count: 5, lastTimestamp: "..." } }
+  let total = 0;
+  let lastTimestamp = null;
+  let lastFile = null;
 
-  await new Promise((resolve, reject) => {
-    res.data.pipe(dest);
-    dest.on("finish", resolve);
-    dest.on("error", reject);
+  if (!fs.existsSync(LOG_FILE)) {
+    return { total, lastTimestamp, lastFile, daily };
+  }
+
+  const rl = readline.createInterface({
+    input: fs.createReadStream(LOG_FILE, { encoding: "utf8" }),
+    crlfDelay: Infinity,
   });
-  console.log(`Downloaded: ${destPath}`);
-}
 
-async function syncFolder(drive, folderId, localPath) {
-  await fs.ensureDir(localPath);
+  for await (const line of rl) {
+    const m = line.match(DETECT_REGEX);
+    if (!m) continue;
 
-  const files = await listFiles(drive, folderId);
+    const [, mon, day, time, tz, year, file] = m;
+    const dateKey = `${year}-${MONTHS[mon]}-${day.padStart(2, "0")}`;
+    const stamp = `${dateKey} ${time} ${tz}`;
 
-  for (const file of files) {
-    const filePath = path.join(localPath, file.name);
+    if (!daily[dateKey]) daily[dateKey] = { count: 0, lastTimestamp: null };
+    daily[dateKey].count++;
+    daily[dateKey].lastTimestamp = stamp;
 
-    if (file.mimeType === "application/vnd.google-apps.folder") {
-      await syncFolder(drive, file.id, filePath);
-    } else {
-      if (!fs.existsSync(filePath)) {
-        await downloadFile(drive, file.id, filePath);
-      }
-    }
+    total++;
+    lastTimestamp = stamp;
+    lastFile = file;
   }
+
+  return { total, lastTimestamp, lastFile, daily };
 }
 
-// Start Express server
+app.get("/stats", async (req, res) => {
+  try {
+    const days = parseInt(req.query.days, 10) || 30; // ?days=7 to limit history
+    const { total, lastTimestamp, lastFile, daily } = await readWatcherStats();
+
+    const dailyRuns = Object.keys(daily)
+      .sort()
+      .reverse()
+      .slice(0, days)
+      .map((date) => ({
+        date,
+        newFiles: daily[date].count,
+        lastTimestamp: daily[date].lastTimestamp,
+      }));
+
+    const todayKey = new Date().toISOString().slice(0, 10);
+
+    res.json({
+      service: "image-watcher",
+      totalNewFiles: total,
+      newFilesToday: daily[todayKey] ? daily[todayKey].count : 0,
+      lastRun: lastTimestamp,
+      lastFile,
+      dailyRuns,
+    });
+  } catch (err) {
+    console.error("Failed to read watcher log:", err);
+    res.status(500).json({ error: "Could not read watcher log" });
+  }
+});
+
 app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-  console.log(`1️⃣ Visit /auth to authorize Google Drive`);
-  console.log(`2️⃣ Test connection via /test`);
-  console.log(`3️⃣ Sync folder via /sync`);
+  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(
+    `CORS allowed origins for /processed: ${ALLOWED_ORIGINS.join(", ")}`,
+  );
 });
