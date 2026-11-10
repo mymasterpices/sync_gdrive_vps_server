@@ -3,138 +3,381 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>SyncDrive image search</title>
+    <title>RK Jewellers | Image search</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
-        color-scheme: light;
-        font-family: system-ui, sans-serif;
-        color: #172033;
-        background: #f4f6fb;
+        --maroon: #5c0f26;
+        --maroon-deep: #7a1a35;
+        --berry: #a3115a;
+        --gold: #c8963e;
+        --gold-soft: #e6c98f;
+        --cream: #faf3ec;
+        --ink: #2b1a20;
+        --muted: #6b5a5f;
+        --serif: "Playfair Display", Georgia, "Times New Roman", serif;
+        --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
       }
       * {
         box-sizing: border-box;
       }
+      html,
       body {
         margin: 0;
+      }
+      body {
         min-height: 100vh;
+        font-family: var(--sans);
+        color: var(--ink);
+        background:
+          radial-gradient(900px 500px at 85% 15%, #ffffffaa, transparent 60%),
+          radial-gradient(700px 500px at 10% 90%, #ecd3b0aa, transparent 60%),
+          linear-gradient(135deg, #fbf5ee 0%, #f6e9dc 55%, #f3e1cf 100%);
         display: grid;
         place-items: start center;
-        padding: 72px 20px;
+        padding: 56px 20px 80px;
+        position: relative;
+        overflow-x: hidden;
       }
+
+      /* decorative swooshes */
+      .deco {
+        position: fixed;
+        pointer-events: none;
+        z-index: 0;
+      }
+      .deco-tl {
+        top: 0;
+        left: 0;
+        width: min(46vw, 560px);
+      }
+      .deco-br {
+        bottom: 0;
+        right: 0;
+        width: min(46vw, 560px);
+      }
+
       main {
-        width: min(760px, 100%);
+        position: relative;
+        z-index: 1;
+        width: min(920px, 100%);
+        text-align: center;
       }
+
+      /* brand */
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 18px;
+        margin-bottom: 34px;
+      }
+      .mono {
+        position: relative;
+        font-family: var(--serif);
+        font-weight: 700;
+        font-size: 3.4rem;
+        line-height: 1;
+        color: var(--maroon);
+        letter-spacing: -2px;
+        padding-top: 16px;
+      }
+      .mono svg {
+        position: absolute;
+        top: -6px;
+        left: 50%;
+        transform: translateX(-60%);
+      }
+      .brand-divider {
+        width: 1px;
+        align-self: stretch;
+        background: var(--gold-soft);
+      }
+      .brand-text {
+        text-align: left;
+      }
+      .brand-name {
+        font-family: var(--serif);
+        font-weight: 600;
+        font-size: 1.7rem;
+        letter-spacing: 0.5px;
+        color: var(--maroon);
+        line-height: 1.1;
+      }
+      .tagline {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 6px;
+        font-size: 0.62rem;
+        letter-spacing: 0.32em;
+        font-weight: 600;
+        color: var(--ink);
+      }
+      .tagline::before,
+      .tagline::after {
+        content: "";
+        height: 1px;
+        width: 22px;
+        background: var(--gold);
+      }
+
+      .ornament {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        margin: 6px auto 4px;
+        width: min(380px, 80%);
+      }
+      .ornament::before,
+      .ornament::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--gold));
+      }
+      .ornament::after {
+        background: linear-gradient(270deg, transparent, var(--gold));
+      }
+
       h1 {
-        margin: 0 0 8px;
-        font-size: clamp(1.8rem, 5vw, 2.5rem);
+        margin: 0 0 12px;
+        font-family: var(--serif);
+        font-weight: 600;
+        font-size: clamp(2.2rem, 6vw, 3.6rem);
+        color: var(--maroon);
+        letter-spacing: -0.5px;
       }
-      p {
-        margin: 0 0 28px;
-        color: #5e687b;
+      .sub {
+        margin: 0 auto 34px;
+        max-width: 560px;
+        color: var(--ink);
+        font-size: 1.02rem;
+        line-height: 1.55;
       }
+
+      /* search */
       form {
         display: flex;
-        gap: 10px;
-        padding: 8px;
-        background: #fff;
-        border: 1px solid #dce1eb;
-        border-radius: 14px;
-        box-shadow: 0 8px 28px #1720330d;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 8px 8px 22px;
+        background: #fffdfb;
+        border: 1px solid var(--gold-soft);
+        border-radius: 999px;
+        box-shadow:
+          0 10px 34px #7a1a3514,
+          0 1px 0 #fff inset;
+      }
+      form .lead {
+        flex: 0 0 auto;
+        color: var(--muted);
+        display: grid;
       }
       input {
         flex: 1;
         min-width: 0;
         border: 0;
         outline: 0;
-        padding: 10px 12px;
+        background: transparent;
+        padding: 12px 4px;
         font: inherit;
+        font-size: 1.05rem;
+        color: var(--ink);
+      }
+      input::placeholder {
+        color: #9a8d91;
+      }
+      input::-webkit-search-cancel-button {
+        cursor: pointer;
+      }
+      .bar-divider {
+        width: 1px;
+        height: 30px;
+        background: #e3d6cf;
       }
       form button {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
         border: 0;
-        border-radius: 9px;
-        padding: 0 20px;
+        border-radius: 999px;
+        padding: 14px 28px;
         color: #fff;
-        background: #3158d5;
         font: inherit;
         font-weight: 600;
+        font-size: 1.02rem;
         cursor: pointer;
+        background: linear-gradient(100deg, var(--berry), var(--maroon-deep));
+        box-shadow: 0 6px 16px #7a1a3540;
+        transition:
+          transform 0.12s ease,
+          filter 0.12s ease;
+      }
+      form button:hover {
+        filter: brightness(1.07);
+      }
+      form button:active {
+        transform: translateY(1px);
       }
       form button:disabled {
         opacity: 0.65;
         cursor: wait;
       }
+      form button:focus-visible,
+      .copy:focus-visible {
+        outline: 3px solid var(--gold);
+        outline-offset: 2px;
+      }
+
       #status {
         min-height: 24px;
-        margin: 16px 2px;
+        margin: 22px 2px 14px;
         font-size: 0.95rem;
+        color: var(--maroon);
+        font-weight: 500;
       }
+
+      /* results */
       #results {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-        gap: 16px;
+        gap: 18px;
+        text-align: left;
       }
       .card {
         overflow: hidden;
-        background: #fff;
-        border: 1px solid #e0e4ed;
-        border-radius: 12px;
+        background: #fffdfb;
+        border: 1px solid #ecdcc8;
+        border-radius: 16px;
+        box-shadow: 0 8px 22px #7a1a3510;
       }
       .card img {
         display: block;
         width: 100%;
-        height: 190px;
+        height: 200px;
         object-fit: contain;
-        background: #f8f9fc;
+        background: #fbf6f0;
       }
       .card footer {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
-        padding: 10px 12px;
+        padding: 11px 14px;
+        border-top: 1px solid #f0e4d4;
       }
       .card footer span {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
         font-size: 0.9rem;
+        color: var(--ink);
       }
       .copy {
         display: grid;
-        flex: 0 0 36px;
-        width: 36px;
-        height: 36px;
+        flex: 0 0 38px;
+        width: 38px;
+        height: 38px;
         place-items: center;
-        border: 1px solid #dce1eb;
-        border-radius: 8px;
-        color: #3158d5;
+        border: 1px solid var(--gold-soft);
+        border-radius: 10px;
+        color: var(--maroon-deep);
         background: #fff;
         cursor: pointer;
       }
       .copy:hover {
-        background: #f2f5ff;
+        background: #fbefe0;
       }
-      @media (max-width: 480px) {
+
+      @media (max-width: 560px) {
         body {
-          padding-top: 40px;
+          padding-top: 36px;
+        }
+        .brand {
+          gap: 12px;
+          margin-bottom: 24px;
+        }
+        .mono {
+          font-size: 2.6rem;
+        }
+        .brand-name {
+          font-size: 1.25rem;
         }
         form {
-          gap: 4px;
+          padding-left: 14px;
+          gap: 6px;
+        }
+        .bar-divider {
+          display: none;
         }
         form button {
-          padding: 0 14px;
+          padding: 12px 16px;
+        }
+        form button .label {
+          display: none;
         }
       }
     </style>
   </head>
   <body>
+    <!-- decorative corners -->
+    <svg class="deco deco-tl" viewBox="0 0 560 360" aria-hidden="true">
+      <defs>
+        <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#e9c98e" />
+          <stop offset="1" stop-color="#f7e7c9" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M0 0 H430 C250 40 110 150 0 330 Z"
+        fill="url(#g1)"
+        opacity=".85"
+      />
+      <path d="M0 0 H330 C190 50 80 140 0 250 Z" fill="#fffaf2" opacity=".7" />
+    </svg>
+    <svg class="deco deco-br" viewBox="0 0 560 360" aria-hidden="true">
+      <defs>
+        <linearGradient id="g2" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0" stop-color="#f7e7c9" />
+          <stop offset="1" stop-color="#d9ac62" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M560 360 H130 C310 320 450 210 560 30 Z"
+        fill="url(#g2)"
+        opacity=".85"
+      />
+      <path d="M560 360 H400 C470 330 530 290 560 240 Z" fill="#7a1a35" />
+    </svg>
+
     <main>
-      <h1>Find an image</h1>
-      <p>
+      <h1>Find an Image</h1>
+      <p class="sub">
         Search processed images by tag number (letters and numbers), then copy
         the image link.
       </p>
+
       <form id="search-form">
+        <span class="lead" aria-hidden="true">
+          <svg
+            width="26"
+            height="26"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="M21 21l-5-5" />
+          </svg>
+        </span>
         <input
           id="tag"
           name="tag"
@@ -144,8 +387,25 @@
           autocomplete="off"
           required
         />
-        <button id="search-button" type="submit">Search</button>
+        <span class="bar-divider" aria-hidden="true"></span>
+        <button id="search-button" type="submit">
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="M21 21l-5-5" />
+          </svg>
+          <span class="label">Search</span>
+        </button>
       </form>
+
       <div id="status" role="status" aria-live="polite"></div>
       <section id="results" aria-label="Image search results"></section>
     </main>
